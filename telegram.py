@@ -52,7 +52,7 @@ async def get_discount_knives(message: types.Message):
     #     print(issue['key'])
     
     for index, issue in enumerate(issue_list_responce.json().get("issues")):
-        inline_btn = InlineKeyboardButton(f'Отметить время в задачу {issue.get("key")}', callback_data=issue.get("key"))
+        inline_btn = InlineKeyboardButton(f'Отметить время', callback_data="create_worklog" + issue.get("key"))
         inline_kbd = InlineKeyboardMarkup().add(inline_btn)
         card = f'{hbold(issue.get("key"))}\n{issue.get("fields").get("summary")}'
     
@@ -62,10 +62,14 @@ async def get_discount_knives(message: types.Message):
             
         await message.answer(card, reply_markup=inline_kbd)
 
-@dp.callback_query_handler(lambda c: c.data == 'GC-1479')
+@dp.callback_query_handler(lambda c: c.data.startswith('create_worklog'))
 async def process_callback_button(callback_query: types.CallbackQuery):
+    issue_id = callback_query.data[14:]
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, 'Нажата кнопка!')
-
+    worklog = create_worklog(message='I did some work here.', duration=60, issue_id=issue_id)
+    if worklog.status_code == 200:
+        await bot.send_message(callback_query.from_user.id, f'Готово!')
+    else:
+        await bot.send_message(callback_query.from_user.id, f'{worklog.text}')
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)

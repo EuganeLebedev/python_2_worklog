@@ -6,11 +6,12 @@ import os
 from requests.models import Response
 
 
-def create_worklog(*, message='I did some work here.', duration=60, issue_id='GC002SD0002-710'):
+def create_worklog(*, message, duration=60, issue_id):
     """
-    Create worklog for specific issue
+    Create worklog for specific issue 
     """
     url = f"{os.getenv('JIRA_URL')}/rest/api/latest/issue/{issue_id}/worklog"
+    # url = f"{os.getenv('JIRA_URL')}/rest/api/latest/issue/GC002SD0002-710/worklog"
     auth = HTTPBasicAuth(os.getenv("JIRA_USER"), os.getenv("JIRA_PASSWORD"))
     headers = {
    "Accept": "application/json",
@@ -22,6 +23,12 @@ def create_worklog(*, message='I did some work here.', duration=60, issue_id='GC
                     "timeSpentSeconds": duration
                     })
 
+    # payload = json.dumps({
+    #             "comment": 'test',
+    #             "started": '2021-12-13T00:00:00.000+0000',
+    #             "timeSpentSeconds": 60
+    #             })
+
     response = requests.request(
     "POST",
     url,
@@ -29,6 +36,7 @@ def create_worklog(*, message='I did some work here.', duration=60, issue_id='GC
     headers=headers,
     auth=auth
     )
+    print(response.status_code, response.text)
 
     return response 
 
@@ -52,7 +60,7 @@ def get_open_issues_list():
 
 def main():
     # create_worklog(message='I did some work here.', duration=60, issue_id='GC002SD0002-710')
-    get_open_issues_list()
+    create_worklog(message='I did some work here.', duration=60, issue_id='GC-1479')
 
 if __name__ == '__main__':
     main()
