@@ -10,7 +10,7 @@ def create_worklog(*, message='I did some work here.', duration=60, issue_id='GC
     """
     Create worklog for specific issue
     """
-    url = f"http://192.168.213.40:8080/rest/api/latest/issue/{issue_id}/worklog"
+    url = f"{os.getenv('JIRA_URL')}/rest/api/latest/issue/{issue_id}/worklog"
     auth = HTTPBasicAuth(os.getenv("JIRA_USER"), os.getenv("JIRA_PASSWORD"))
     headers = {
    "Accept": "application/json",
@@ -37,7 +37,7 @@ def get_open_issues_list():
     """
     List of open issues
     """
-    url = f"http://192.168.213.40:8080/rest/api/latest/search?jql=assignee=currentUser() and status in (Open, \"In Progress\")"
+    url = f"{os.getenv('JIRA_URL')}/rest/api/latest/search?jql=assignee=currentUser() and status in (Open, \"In Progress\")"
     auth = HTTPBasicAuth(os.getenv("JIRA_USER"), os.getenv("JIRA_PASSWORD"))
     headers = {
    "Accept": "application/json",
@@ -45,12 +45,9 @@ def get_open_issues_list():
     }
 
     response = requests.request("GET", url, headers=headers, auth=auth)
+    with open('results.json', 'w') as f:
+        json.dump(json.loads(response.text), f, indent=4)
 
-    with open('tasks.json', 'w') as f:
-        json.dump(response.json(), f, indent=4)
-
-    for issue in response.json().get("issues"):
-        print(issue['key'])
     return response 
 
 def main():
