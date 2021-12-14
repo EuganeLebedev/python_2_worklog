@@ -1,6 +1,6 @@
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types.inline_keyboard import InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.utils.markdown import hbold, hlink
+from aiogram.utils.markdown import hbold
 from aiogram.dispatcher.filters import Text
 import os
 import logging
@@ -9,6 +9,7 @@ import asyncio
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from db import get_registred_users_id
 
 API_TOKEN = os.getenv("TB_TOKEN")
 
@@ -27,17 +28,25 @@ class CreateWorklog(StatesGroup):
 
 def auth(func):
 
-    async def wrapper(message, state, *args, **kwargs):
-        if message.from_user.id != 192151684:
-            return await message.reply("Access denied", reply=False)
-        return await func(message, state, *args, **kwargs)
-
+    async def wrapper(message, *args, **kwargs):
+        if message.from_user.id not in get_registred_users_id():
+            print(f"{message.from_user.id=}")
+            return await message.answer("Access denied")
+        return await func(message, *args, **kwargs)
     return wrapper
 
 
-@auth
+def auth2(func):
+    async def wrapper(message, stage, *args, **kwargs):
+        if message.from_user.id not in get_registred_users_id():
+            return await message.answer("Access denied")
+        return await func(message, stage, *args, **kwargs)
+    return wrapper
+
+
 @dp.message_handler(commands=['start'])
-async def send_welcome(message: types.Message):
+@auth
+async def send_welcome(message: types.Message, *args, **kwargs):
     """
     This handler will be called when user sends `/start` or `/help` command
     """
@@ -49,12 +58,12 @@ async def send_welcome(message: types.Message):
     await message.answer('Выберите категорию', reply_markup=keyboard)
 
 
-@auth
 @dp.message_handler(Text(equals='Открытые задачи'))
-async def get_open_issues(message: types.Message):
+@auth
+async def get_open_issues(message: types.Message, *args, **kwargs):
     await message.answer('Please waiting...')
 
-    issue_list_responce = get_open_issues_list()
+    issue_list_responce = get_open_issues_list(user_id=message.from_user.id)
 
     for index, issue in enumerate(issue_list_responce.json().get("issues")):
         inline_btn = InlineKeyboardButton(
@@ -68,12 +77,12 @@ async def get_open_issues(message: types.Message):
         await message.answer(card, reply_markup=inline_kbd)
 
 
-@auth
 @dp.message_handler(Text(equals='Типовые задачи'))
-async def get_typical_issues(message: types.Message):
+@auth
+async def get_typical_issues(message: types.Message, *args, **kwargs):
     await message.answer('Please waiting...')
 
-    issue_list_responce = get_typical_issues_list()
+    issue_list_responce = get_typical_issues_list(user_id=message.from_user.id)
 
     for index, issue in enumerate(issue_list_responce.json().get("issues")):
         inline_btn = InlineKeyboardButton(
@@ -87,8 +96,8 @@ async def get_typical_issues(message: types.Message):
         await message.answer(card, reply_markup=inline_kbd)
 
 
-@auth
 @dp.callback_query_handler(lambda c: c.data.startswith('create_worklog'))
+# @auth
 async def create_worklog_start(callback_query: types.CallbackQuery, state: FSMContext):
     await state.update_data(issue_id=callback_query.data[14:])
     await callback_query.message.answer(f"TASK {callback_query.data[14:]}:")
@@ -96,8 +105,8 @@ async def create_worklog_start(callback_query: types.CallbackQuery, state: FSMCo
     await CreateWorklog.waiting_for_spend_time.set()
 
 
-@auth
 @dp.message_handler(state=CreateWorklog.waiting_for_spend_time)
+# @auth2
 async def spend_time_chosen(message: types.Message, state: FSMContext):
 
     try:
@@ -117,8 +126,8 @@ async def spend_time_chosen(message: types.Message, state: FSMContext):
     await message.answer("Что было сделано?")
 
 
-@auth
 @dp.message_handler(state=CreateWorklog.waiting_for_comment)
+# @auth2
 async def worklog_comment_chosen(message: types.Message, state: FSMContext):
 
     if not message.text:
@@ -129,7 +138,7 @@ async def worklog_comment_chosen(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
 
     worklog = create_worklog(comment=user_data.get("comment"),
-                             duration=user_data.get("spend_time"), issue_id=user_data.get("issue_id"))
+                             duration=user_data.get("spend_time"), issue_id=user_data.get("issue_id"), user_id=message.from_user.id)
     if worklog.json().get("errorMessage"):
         await message.answer(f"{worklog.json().get('errorMessages')}\n{worklog.json().get('errors')}")
     elif worklog.status_code in [200, 201, 202]:
