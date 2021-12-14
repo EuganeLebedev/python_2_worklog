@@ -4,7 +4,7 @@ from aiogram.utils.markdown import hbold, hlink
 from aiogram.dispatcher.filters import Text
 import os
 import logging
-from jira import get_open_issues_list, create_worklog
+from jira import get_open_issues_list, create_worklog, get_typical_issues_list
 import asyncio
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
@@ -35,8 +35,8 @@ def auth(func):
     return wrapper
 
 
-@dp.message_handler(commands=['start'])
 @auth
+@dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
     """
     This handler will be called when user sends `/start` or `/help` command
@@ -49,12 +49,31 @@ async def send_welcome(message: types.Message):
     await message.answer('Выберите категорию', reply_markup=keyboard)
 
 
-@dp.message_handler(Text(equals='Открытые задачи'))
 @auth
-async def get_discount_knives(message: types.Message):
+@dp.message_handler(Text(equals='Открытые задачи'))
+async def get_open_issues(message: types.Message):
     await message.answer('Please waiting...')
 
     issue_list_responce = get_open_issues_list()
+
+    for index, issue in enumerate(issue_list_responce.json().get("issues")):
+        inline_btn = InlineKeyboardButton(
+            f'Отметить время', callback_data="create_worklog" + issue.get("key"))
+        inline_kbd = InlineKeyboardMarkup().add(inline_btn)
+        card = f'{hbold(issue.get("key"))}\n{issue.get("fields").get("summary")}'
+
+        if index % 20 == 0:
+            asyncio.sleep(3)
+
+        await message.answer(card, reply_markup=inline_kbd)
+
+
+@auth
+@dp.message_handler(Text(equals='Типовые задачи'))
+async def get_typical_issues(message: types.Message):
+    await message.answer('Please waiting...')
+
+    issue_list_responce = get_typical_issues_list()
 
     for index, issue in enumerate(issue_list_responce.json().get("issues")):
         inline_btn = InlineKeyboardButton(
@@ -81,11 +100,8 @@ async def create_worklog_start(callback_query: types.CallbackQuery, state: FSMCo
 @dp.message_handler(state=CreateWorklog.waiting_for_spend_time)
 async def spend_time_chosen(message: types.Message, state: FSMContext):
 
-    await message.answer("Test")
-    await message.answer("Test for state")
-
     try:
-        spend_time = int(message.text)*60
+        spend_time = int(float(message.text)*60*60)
     except ValueError as e:
         await message.answer("Пожалуйста, введите число")
         return
@@ -111,7 +127,15 @@ async def worklog_comment_chosen(message: types.Message, state: FSMContext):
 
     await state.update_data(comment=message.text)
     user_data = await state.get_data()
-    await message.answer(f"{user_data}")
+
+    worklog = create_worklog(comment=user_data.get("comment"),
+                             duration=user_data.get("spend_time"), issue_id=user_data.get("issue_id"))
+    if worklog.json().get("errorMessage"):
+        await message.answer(f"{worklog.json().get('errorMessages')}\n{worklog.json().get('errors')}")
+    elif worklog.status_code in [200, 201, 202]:
+        await message.answer(f"Готово!")
+    else:
+        await message.answer(f"{worklog.status_code} {worklog.text}")
     await state.finish()
 
 
