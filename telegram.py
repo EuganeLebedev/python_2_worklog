@@ -6,6 +6,9 @@ import os
 import logging
 from jira import get_open_issues_list, create_worklog
 import asyncio
+from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
 API_TOKEN = os.getenv("TB_TOKEN")
 
@@ -14,7 +17,13 @@ logging.basicConfig(level=logging.INFO)
 
 # Initialize bot and dispatcher
 bot = Bot(token=API_TOKEN, parse_mode=types.ParseMode.HTML)
-dp = Dispatcher(bot)
+dp = Dispatcher(bot, storage=MemoryStorage())
+
+
+class CreateWorklog(StatesGroup):
+    waiting_for_spend_time = State()
+    waiting_for_comment = State()
+
 
 def auth(func):
 
@@ -22,9 +31,8 @@ def auth(func):
         if message.from_user.id != 192151684:
             return await message.reply("Access denied", reply=False)
         return await func(message)
-    
-    return wrapper
 
+    return wrapper
 
 
 @dp.message_handler(commands=['start'])
@@ -34,42 +42,72 @@ async def send_welcome(message: types.Message):
     This handler will be called when user sends `/start` or `/help` command
     """
 
-    start_buttons = ['Открытые задачи', 'Еще что-то',]
+    start_buttons = ['Открытые задачи', 'Еще что-то', ]
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.add(*start_buttons)
-    
-    await message.answer('Выберите категорию', reply_markup=keyboard)
 
+    await message.answer('Выберите категорию', reply_markup=keyboard)
 
 
 @dp.message_handler(Text(equals='Открытые задачи'))
 @auth
 async def get_discount_knives(message: types.Message):
     await message.answer('Please waiting...')
-    
+
     issue_list_responce = get_open_issues_list()
-    # for issue in issue_list_responce.json().get("issues"):
-    #     print(issue['key'])
-    
+
     for index, issue in enumerate(issue_list_responce.json().get("issues")):
-        inline_btn = InlineKeyboardButton(f'Отметить время', callback_data="create_worklog" + issue.get("key"))
+        inline_btn = InlineKeyboardButton(
+            f'Отметить время', callback_data="create_worklog" + issue.get("key"))
         inline_kbd = InlineKeyboardMarkup().add(inline_btn)
         card = f'{hbold(issue.get("key"))}\n{issue.get("fields").get("summary")}'
-    
-    
-        if index%20 == 0:
+
+        if index % 20 == 0:
             asyncio.sleep(3)
-            
+
         await message.answer(card, reply_markup=inline_kbd)
 
+
 @dp.callback_query_handler(lambda c: c.data.startswith('create_worklog'))
-async def process_callback_button(callback_query: types.CallbackQuery):
-    issue_id = callback_query.data[14:]
-    await bot.answer_callback_query(callback_query.id)
-    worklog = create_worklog(message='I did some work here.', duration=60, issue_id=issue_id)
-    if worklog.status_code == 200:
-        await bot.send_message(callback_query.from_user.id, f'Готово!')
-    else:
-        await bot.send_message(callback_query.from_user.id, f'{worklog.text}')
+# @auth
+async def create_worklog_start(callback_query: types.CallbackQuery, state: FSMContext):
+    await state.update_data(issue_id=callback_query.data[14:])
+    await callback_query.message.answer(f"TASK {callback_query.data[14:]}:")
+    await callback_query.message.answer("Сколько времени было затрачено?:")
+    await CreateWorklog.waiting_for_spend_time.set()
+
+
+@dp.message_handler(state=CreateWorklog.waiting_for_spend_time)
+# @auth
+async def spend_time_chosen(message: types.Message, state: FSMContext):
+    await message.answer("Test")
+    await message.answer("Test for state")
+    try:
+        spend_time = int(message.text)
+    except ValueError as e:
+        await message.answer("Пожалуйста, введите число")
+        return
+    if spend_time < 0:
+        await message.answer("Пожалуйста, введите значение больше нуля")
+        return
+    await state.update_data(spend_time=int(message.text))
+
+    # Для последовательных шагов можно не указывать название состояния, обходясь next()
+    await CreateWorklog.waiting_for_comment.set()
+    await message.answer("Что было сделано?")
+
+
+@dp.message_handler(state=CreateWorklog.waiting_for_comment)
+# @auth
+async def worklog_comment_chosen(message: types.Message, state: FSMContext):
+    if not message.text:
+        await message.answer("Пожалуйста, укажите что было сделано.")
+        return
+    await state.update_data(comment=message.text)
+    user_data = await state.get_data()
+    await message.answer(f"{user_data}")
+    await state.finish()
+
+
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
