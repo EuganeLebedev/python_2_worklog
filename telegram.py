@@ -36,14 +36,6 @@ def auth(func):
     return wrapper
 
 
-def auth2(func):
-    async def wrapper(message, stage, *args, **kwargs):
-        if message.from_user.id not in get_registred_users_id():
-            return await message.answer("Access denied")
-        return await func(message, stage, *args, **kwargs)
-    return wrapper
-
-
 @dp.message_handler(commands=['start'])
 @auth
 async def send_welcome(message: types.Message, *args, **kwargs):
@@ -97,8 +89,8 @@ async def get_typical_issues(message: types.Message, *args, **kwargs):
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('create_worklog'))
-# @auth
-async def create_worklog_start(callback_query: types.CallbackQuery, state: FSMContext):
+@auth
+async def create_worklog_start(callback_query: types.CallbackQuery, state: FSMContext, *args, **kwargs):
     await state.update_data(issue_id=callback_query.data[14:])
     await callback_query.message.answer(f"TASK {callback_query.data[14:]}:")
     await callback_query.message.answer("Сколько часов было затрачено?:")
@@ -106,8 +98,8 @@ async def create_worklog_start(callback_query: types.CallbackQuery, state: FSMCo
 
 
 @dp.message_handler(state=CreateWorklog.waiting_for_spend_time)
-# @auth2
-async def spend_time_chosen(message: types.Message, state: FSMContext):
+@auth
+async def spend_time_chosen(message: types.Message, state: FSMContext, *args, **kwargs):
 
     try:
         spend_time = int(float(message.text)*60*60)
@@ -127,8 +119,8 @@ async def spend_time_chosen(message: types.Message, state: FSMContext):
 
 
 @dp.message_handler(state=CreateWorklog.waiting_for_comment)
-# @auth2
-async def worklog_comment_chosen(message: types.Message, state: FSMContext):
+@auth
+async def worklog_comment_chosen(message: types.Message, state: FSMContext, *args, **kwargs):
 
     if not message.text:
         await message.answer("Пожалуйста, укажите что было сделано.")
