@@ -50,6 +50,15 @@ async def send_welcome(message: types.Message, *args, **kwargs):
     await message.answer('Выберите категорию', reply_markup=keyboard)
 
 
+@dp.message_handler(commands=['id'])
+async def get_user_id(message: types.Message, *args, **kwargs):
+    """
+    This handler will be called when user sends `/id` command
+    """
+
+    await message.answer(f'Ваш id: {message.from_user.id}')
+
+
 @dp.message_handler(Text(equals='Открытые задачи'))
 @auth
 async def get_open_issues(message: types.Message, *args, **kwargs):
@@ -140,5 +149,20 @@ async def worklog_comment_chosen(message: types.Message, state: FSMContext, *arg
     await state.finish()
 
 
+async def set_default_commands(db):
+    await dp.bot.set_my_commands([
+        types.BotCommand("start", "Запустить бота"),
+        types.BotCommand("id", "Получить id пользователя"),
+    ])
+
+
+def on_startup(dp):
+    set_default_commands(dp)
+
+
 if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
+    executor.start_polling(dp, skip_updates=True,
+                           on_startup=on_startup(dp))
+
+    # executor.start_polling(dp, skip_updates=True,
+    #                        on_startup=on_startup(dp))

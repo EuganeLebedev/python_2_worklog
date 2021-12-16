@@ -43,7 +43,11 @@ def get_open_issues_list(user_id):
     """
     JIRA_USER, JIRA_PASSWORD = get_user(user_id)
     if JIRA_USER and JIRA_PASSWORD:
-        url = f"{os.getenv('JIRA_URL')}/rest/api/latest/search?jql=assignee = currentUser() AND status in (Open, \"In Progress\") and project != \"Гросвер Груп. 2019-12. SAP B1\""
+        # url = f"{os.getenv('JIRA_URL')}/rest/api/latest/search?jql=assignee = currentUser() AND status in (Open, \"In Progress\")"
+        if JIRA_USER == 'e.lebedev@grosver.com':
+            url = f"{os.getenv('JIRA_URL')}/rest/api/latest/search?jql=assignee = currentUser() AND status in (Open, \"In Progress\") and project != \"Гросвер Груп. 2019-12. SAP B1\""
+        else:
+            url = f"{os.getenv('JIRA_URL')}/rest/api/latest/search?jql=assignee = currentUser() AND status in (Open, \"In Progress\")"
         auth = HTTPBasicAuth(JIRA_USER, JIRA_PASSWORD)
         headers = {
             "Accept": "application/json",
@@ -51,8 +55,6 @@ def get_open_issues_list(user_id):
         }
 
         response = requests.request("GET", url, headers=headers, auth=auth)
-        with open('results.json', 'w') as f:
-            json.dump(json.loads(response.text), f, indent=4)
 
         return response
     return None
@@ -72,8 +74,6 @@ def get_typical_issues_list(user_id):
         }
 
         response = requests.request("GET", url, headers=headers, auth=auth)
-        with open('results.json', 'w') as f:
-            json.dump(json.loads(response.text), f, indent=4)
 
         return response
     return None
