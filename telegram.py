@@ -16,8 +16,6 @@ API_TOKEN = os.getenv("TB_TOKEN")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-
-# Initialize bot and dispatcher
 bot = Bot(token=API_TOKEN, parse_mode=types.ParseMode.HTML)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
@@ -176,8 +174,12 @@ async def worklog_comment_chosen(message: types.Message, state: FSMContext, *arg
 
     worklog = create_worklog(comment=user_data.get("comment"),
                              duration=user_data.get("spend_time"), issue_id=user_data.get("issue_id"), user_id=message.from_user.id)
-    if worklog.json().get("errorMessage"):
-        await message.answer(f"{worklog.json().get('errorMessages')}\n{worklog.json().get('errors')}")
+    worklog_errors = worklog.json().get("errorMessage")
+    if worklog_errors:
+        error_message = 'Ошибка создания worklog'
+        for error in worklog_errors:
+            error_message += f'\n{error}'
+        await message.answer(error_message)
     elif worklog.status_code in [200, 201, 202]:
         await message.answer(f"Готово!")
     else:
@@ -185,13 +187,33 @@ async def worklog_comment_chosen(message: types.Message, state: FSMContext, *arg
     await state.finish()
 
 
-def on_startup(dp):
-    set_default_commands(dp)
+logger = logging.getLogger(__name__)
 
+# Регистрация команд, отображаемых в интерфейсе Telegram
+
+
+async def set_commands(bot: Bot):
+    commands = [
+        types.BotCommand(command="/start", description="Внести worklog"),
+        types.BotCommand(
+            command="/id", description="id текущего пользователя"),
+        types.BotCommand(command="/cancel",
+                         description="Отменить текущее действие")
+    ]
+    await bot.set_my_commands(commands)
+
+
+async def main():
+    # Initialize bot and dispatcher
+    # Установка команд бота
+    await set_commands(bot)
+
+    # Запуск поллинга
+    # await dp.skip_updates()  # пропуск накопившихся апдейтов (необязательно)
+    await dp.start_polling()
 
 if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True,
-                           on_startup=on_startup(dp))
+    asyncio.run(main())
 
     # executor.start_polling(dp, skip_updates=True,
     #                        on_startup=on_startup(dp))
