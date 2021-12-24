@@ -43,7 +43,6 @@ def get_open_issues_list(user_id):
     """
     JIRA_USER, JIRA_PASSWORD = get_user(user_id)
     if JIRA_USER and JIRA_PASSWORD:
-        # url = f"{os.getenv('JIRA_URL')}/rest/api/latest/search?jql=assignee = currentUser() AND status in (Open, \"In Progress\")"
         if JIRA_USER == 'e.lebedev@grosver.com':
             url = f"{os.getenv('JIRA_URL')}/rest/api/latest/search?jql=assignee = currentUser() AND status in (Open, \"In Progress\") and project != \"Гросвер Груп. 2019-12. SAP B1\""
         else:

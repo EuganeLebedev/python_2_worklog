@@ -1,5 +1,6 @@
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types.inline_keyboard import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types.reply_keyboard import ReplyKeyboardRemove
 from aiogram.utils.markdown import hbold
 from aiogram.dispatcher.filters import Text
 import os
@@ -53,8 +54,11 @@ async def send_welcome(message: types.Message, *args, **kwargs):
 @dp.message_handler(commands="cancel", state="*")
 @dp.message_handler(Text(equals="отмена", ignore_case=True), state="*")
 async def cmd_cancel(message: types.Message, state: FSMContext):
+    start_buttons = ['Открытые задачи', 'Типовые задачи', ]
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add(*start_buttons)
     await state.finish()
-    await message.answer("Действие отменено", reply_markup=types.ReplyKeyboardRemove())
+    await message.answer("Действие отменено", reply_markup=keyboard)
 
 
 async def set_default_commands(db):
@@ -79,17 +83,26 @@ async def get_open_issues(message: types.Message, *args, **kwargs):
     await message.answer('Please waiting...')
 
     issue_list_responce = get_open_issues_list(user_id=message.from_user.id)
+    issues_list = issue_list_responce.json().get("issues")
+    issues_list_errors = issue_list_responce.json().get("errorMessages")
+    print(1)
+    if issues_list:
+        for index, issue in enumerate(issues_list):
+            inline_btn = InlineKeyboardButton(
+                f'Отметить время', callback_data="create_worklog" + issue.get("key"))
+            inline_kbd = InlineKeyboardMarkup().add(inline_btn)
+            card = f'{hbold(issue.get("key"))}\n{issue.get("fields").get("summary")}'
 
-    for index, issue in enumerate(issue_list_responce.json().get("issues")):
-        inline_btn = InlineKeyboardButton(
-            f'Отметить время', callback_data="create_worklog" + issue.get("key"))
-        inline_kbd = InlineKeyboardMarkup().add(inline_btn)
-        card = f'{hbold(issue.get("key"))}\n{issue.get("fields").get("summary")}'
+            if index % 20 == 0:
+                asyncio.sleep(3)
 
-        if index % 20 == 0:
-            asyncio.sleep(3)
+            await message.answer(card, reply_markup=inline_kbd)
+    else:
+        answer_message = "Не удалось получить список задач"
+        for error in issues_list_errors:
+            answer_message += f'\nПричина: {error}'
 
-        await message.answer(card, reply_markup=inline_kbd)
+        await message.answer(answer_message)
 
 
 @dp.message_handler(Text(equals='Типовые задачи'))
@@ -98,17 +111,26 @@ async def get_typical_issues(message: types.Message, *args, **kwargs):
     await message.answer('Please waiting...')
 
     issue_list_responce = get_typical_issues_list(user_id=message.from_user.id)
+    issues_list = issue_list_responce.json().get("issues")
+    issues_list_errors = issue_list_responce.json().get("errorMessages")
 
-    for index, issue in enumerate(issue_list_responce.json().get("issues")):
-        inline_btn = InlineKeyboardButton(
-            f'Отметить время', callback_data="create_worklog" + issue.get("key"))
-        inline_kbd = InlineKeyboardMarkup().add(inline_btn)
-        card = f'{hbold(issue.get("key"))}\n{issue.get("fields").get("summary")}'
+    if issues_list:
+        for index, issue in enumerate(issues_list):
+            inline_btn = InlineKeyboardButton(
+                f'Отметить время', callback_data="create_worklog" + issue.get("key"))
+            inline_kbd = InlineKeyboardMarkup().add(inline_btn)
+            card = f'{hbold(issue.get("key"))}\n{issue.get("fields").get("summary")}'
 
-        if index % 20 == 0:
-            asyncio.sleep(3)
+            if index % 20 == 0:
+                asyncio.sleep(3)
 
-        await message.answer(card, reply_markup=inline_kbd)
+            await message.answer(card, reply_markup=inline_kbd)
+    else:
+        answer_message = "Не удалось получить список задач"
+        for error in issues_list_errors:
+            answer_message += f'\nПричина: {error}'
+
+        await message.answer(answer_message)
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('create_worklog'))
