@@ -50,6 +50,20 @@ async def send_welcome(message: types.Message, *args, **kwargs):
     await message.answer('Выберите категорию', reply_markup=keyboard)
 
 
+@dp.message_handler(commands="cancel", state="*")
+@dp.message_handler(Text(equals="отмена", ignore_case=True), state="*")
+async def cmd_cancel(message: types.Message, state: FSMContext):
+    await state.finish()
+    await message.answer("Действие отменено", reply_markup=types.ReplyKeyboardRemove())
+
+
+async def set_default_commands(db):
+    await dp.bot.set_my_commands([
+        types.BotCommand("start", "Запустить бота"),
+        types.BotCommand("id", "Получить id пользователя"),
+    ])
+
+
 @dp.message_handler(commands=['id'])
 async def get_user_id(message: types.Message, *args, **kwargs):
     """
@@ -147,13 +161,6 @@ async def worklog_comment_chosen(message: types.Message, state: FSMContext, *arg
     else:
         await message.answer(f"{worklog.status_code} {worklog.text}")
     await state.finish()
-
-
-async def set_default_commands(db):
-    await dp.bot.set_my_commands([
-        types.BotCommand("start", "Запустить бота"),
-        types.BotCommand("id", "Получить id пользователя"),
-    ])
 
 
 def on_startup(dp):
